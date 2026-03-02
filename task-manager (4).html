@@ -1,0 +1,630 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Task Board</title>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Noto+Sans+JP:wght@300;400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg:#f0f0ed; --surface:#fff; --surface2:#f7f7f5; --border:#ddddd8;
+    --ink:#111110; --ink2:#555550; --ink3:#999990;
+    --red:#c0392b; --red-bg:#fdf2f1;
+    --amber:#b8860b; --amber-bg:#fdf8ec;
+    --teal:#1a7a6e; --teal-bg:#edf7f5;
+    --slate:#4a5568; --slate-bg:#f0f2f5;
+    --shadow:0 1px 3px rgba(0,0,0,0.08),0 4px 12px rgba(0,0,0,0.05);
+    --shadow-lg:0 8px 32px rgba(0,0,0,0.12);
+  }
+  *,*::before,*::after{margin:0;padding:0;box-sizing:border-box;}
+  body{font-family:'Noto Sans JP',sans-serif;background:var(--bg);color:var(--ink);min-height:100vh;}
+
+  /* TOP BAR */
+  .topbar{position:sticky;top:0;z-index:50;background:var(--ink);display:flex;align-items:center;justify-content:space-between;padding:0 2rem;height:52px;}
+  .topbar-logo{font-family:'Bebas Neue',sans-serif;font-size:1.5rem;letter-spacing:0.12em;color:#fff;}
+  .topbar-logo span{color:#e8c84a;}
+  .topbar-actions{display:flex;align-items:center;gap:0.6rem;}
+  .btn-tmpl{background:transparent;border:1px solid #555;color:#ccc;padding:0.3rem 0.9rem;border-radius:3px;font-family:'Noto Sans JP',sans-serif;font-size:0.75rem;cursor:pointer;letter-spacing:0.04em;transition:all 0.15s;}
+  .btn-tmpl:hover{border-color:#999;color:#fff;}
+  .btn-add{background:#e8c84a;border:none;color:var(--ink);padding:0.35rem 1rem;border-radius:3px;font-family:'Noto Sans JP',sans-serif;font-size:0.78rem;font-weight:700;cursor:pointer;letter-spacing:0.04em;transition:opacity 0.15s;}
+  .btn-add:hover{opacity:0.85;}
+
+  /* LOADING */
+  .progress-bar{position:fixed;top:0;left:0;width:0;height:2px;background:#e8c84a;z-index:9999;pointer-events:none;}
+  .progress-bar.loading{animation:progAnim 1.4s ease infinite;}
+  @keyframes progAnim{0%{width:0;opacity:1;}70%{width:85%;opacity:1;}100%{width:100%;opacity:0;}}
+
+  /* TEMPLATE DRAWER */
+  .tmpl-drawer{max-width:900px;margin:0 auto;border:1px solid var(--border);border-top:none;background:#fafafa;display:none;}
+  .tmpl-drawer.show{display:block;}
+  .tmpl-drawer-head{display:flex;align-items:center;justify-content:space-between;padding:0.7rem 1.5rem;border-bottom:1px solid var(--border);background:var(--ink);}
+  .tmpl-drawer-head h2{font-family:'Bebas Neue',sans-serif;font-size:1rem;letter-spacing:0.1em;color:#e8c84a;}
+  .tmpl-close{background:transparent;border:none;color:#888;cursor:pointer;font-size:1rem;}
+  .tmpl-close:hover{color:#fff;}
+  .tmpl-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:1px;background:var(--border);}
+  .tmpl-card{background:#fff;padding:1rem 1.2rem;display:flex;flex-direction:column;gap:0.5rem;transition:background 0.15s;}
+  .tmpl-card:hover{background:#f9f9f7;}
+  .tmpl-card-name{font-size:0.88rem;font-weight:700;}
+  .tmpl-card-meta{font-size:0.73rem;color:var(--ink3);}
+  .tmpl-date-row{display:flex;align-items:center;gap:0.5rem;margin-top:0.2rem;}
+  .tmpl-date-label{font-size:0.7rem;color:var(--ink3);white-space:nowrap;}
+  .tmpl-date-input{flex:1;background:var(--surface2);border:1px solid var(--border);color:var(--ink);padding:0.22rem 0.5rem;border-radius:3px;font-size:0.73rem;font-family:'Noto Sans JP',sans-serif;outline:none;}
+  .tmpl-date-input:focus{border-color:var(--ink);}
+  .tmpl-card-actions{display:flex;gap:0.4rem;margin-top:0.3rem;}
+  .tmpl-use-btn{flex:1;background:var(--ink);color:#fff;border:none;padding:0.3rem 0;border-radius:3px;font-size:0.73rem;font-family:'Noto Sans JP',sans-serif;font-weight:700;cursor:pointer;transition:opacity 0.15s;}
+  .tmpl-use-btn:hover{opacity:0.8;}
+  .tmpl-del-btn{background:transparent;border:1px solid var(--border);color:var(--ink3);padding:0.3rem 0.6rem;border-radius:3px;font-size:0.73rem;font-family:'Noto Sans JP',sans-serif;cursor:pointer;transition:all 0.15s;}
+  .tmpl-del-btn:hover{border-color:var(--red);color:var(--red);}
+  .tmpl-empty{padding:2rem;text-align:center;color:var(--ink3);font-size:0.82rem;grid-column:1/-1;}
+
+  /* MAIN */
+  .main{max-width:900px;margin:0 auto;padding:1.5rem 1rem 4rem;display:flex;flex-direction:column;gap:0.5rem;}
+
+  /* TASK ROW */
+  .task-row{background:var(--surface);border:1px solid var(--border);border-left:3px solid transparent;transition:border-color 0.2s,box-shadow 0.2s;}
+  .task-row:hover{box-shadow:var(--shadow);}
+  .task-row.is-open{border-left-color:var(--ink);}
+  .task-row.is-done{border-left-color:var(--teal);opacity:0.55;}
+  .task-head{display:grid;grid-template-columns:20px 1fr auto auto;align-items:center;gap:0.75rem;padding:0.85rem 1rem;cursor:pointer;user-select:none;}
+  .caret{font-size:0.55rem;color:var(--ink3);transition:transform 0.2s;justify-self:center;}
+  .is-open .caret{transform:rotate(90deg);}
+  .task-title{font-size:0.92rem;font-weight:700;letter-spacing:0.01em;}
+  .is-done .task-title{text-decoration:line-through;color:var(--ink3);}
+  .task-chips{display:flex;align-items:center;gap:0.5rem;}
+  .chip{font-size:0.65rem;font-weight:700;letter-spacing:0.06em;padding:0.18rem 0.5rem;border-radius:2px;text-transform:uppercase;}
+  .chip-count{background:var(--surface2);color:var(--ink3);border:1px solid var(--border);}
+  .chip-due{background:var(--amber-bg);color:var(--amber);}
+  .chip-done{background:var(--teal-bg);color:var(--teal);}
+  .prog-wrap{display:flex;align-items:center;gap:0.4rem;font-size:0.68rem;color:var(--ink3);}
+  .prog-track{width:56px;height:3px;background:var(--border);border-radius:1px;overflow:hidden;}
+  .prog-fill{height:100%;background:var(--ink);border-radius:1px;transition:width 0.4s;}
+  .is-done .prog-fill{background:var(--teal);}
+  .task-btns{display:flex;align-items:center;gap:0.3rem;opacity:0;transition:opacity 0.15s;}
+  .task-row:hover .task-btns{opacity:1;}
+  .t-btn{background:transparent;border:1px solid var(--border);border-radius:2px;padding:0.18rem 0.5rem;font-size:0.65rem;font-weight:700;letter-spacing:0.04em;cursor:pointer;color:var(--ink3);font-family:'Noto Sans JP',sans-serif;white-space:nowrap;transition:all 0.12s;}
+  .t-btn:hover{background:var(--surface2);color:var(--ink);border-color:var(--ink3);}
+  .t-btn.done:hover{background:var(--teal-bg);color:var(--teal);border-color:var(--teal);}
+  .t-btn.reopen:hover{background:var(--slate-bg);color:var(--slate);border-color:var(--slate);}
+  .t-btn.del:hover{background:var(--red-bg);color:var(--red);border-color:var(--red);}
+  .t-btn.tmpl-save:hover{background:var(--amber-bg);color:var(--amber);border-color:var(--amber);}
+
+  /* DETAIL */
+  .task-body{display:none;border-top:1px solid var(--border);}
+  .is-open .task-body{display:block;}
+  .task-desc{padding:0.75rem 1rem;font-size:0.82rem;color:var(--ink2);line-height:1.75;border-bottom:1px solid var(--border);background:var(--surface2);}
+  .members-label{display:block;font-size:0.63rem;font-weight:700;letter-spacing:0.1em;color:var(--ink3);text-transform:uppercase;padding:0.5rem 1rem 0.3rem;}
+  .member-list{padding:0 0.75rem 0.75rem;display:flex;flex-direction:column;gap:0.3rem;}
+  .member-row{display:grid;grid-template-columns:28px 1fr auto auto auto;align-items:center;gap:0.65rem;padding:0.5rem 0.65rem;background:var(--surface2);border:1px solid var(--border);border-radius:2px;transition:background 0.12s;}
+  .member-row:hover{background:#ededea;}
+  .avatar{width:28px;height:28px;border-radius:50%;background:var(--ink);color:#fff;display:flex;align-items:center;justify-content:center;font-size:0.68rem;font-weight:700;flex-shrink:0;}
+  .member-name-text{font-size:0.83rem;font-weight:500;}
+  .status-sel{background:#fff;border:1px solid var(--border);color:var(--ink);padding:0.22rem 0.4rem;border-radius:2px;font-size:0.72rem;font-family:'Noto Sans JP',sans-serif;cursor:pointer;outline:none;}
+  .status-sel:focus{border-color:var(--ink);}
+  .status-tag{display:inline-block;padding:0.18rem 0.55rem;border-radius:2px;font-size:0.65rem;font-weight:700;letter-spacing:0.05em;text-transform:uppercase;min-width:48px;text-align:center;}
+  .s-todo{background:var(--slate-bg);color:var(--slate);}
+  .s-wip{background:var(--amber-bg);color:var(--amber);}
+  .s-done{background:var(--teal-bg);color:var(--teal);}
+  .s-hold{background:var(--red-bg);color:var(--red);}
+  .m-del-btn{background:transparent;border:none;color:var(--border);cursor:pointer;font-size:0.8rem;padding:0.1rem 0.15rem;transition:color 0.12s;line-height:1;}
+  .member-row:hover .m-del-btn{color:var(--ink3);}
+  .m-del-btn:hover{color:var(--red)!important;}
+  .add-member-btn{margin:0 0.75rem 0.75rem;background:transparent;border:1px dashed var(--border);color:var(--ink3);padding:0.45rem;border-radius:2px;font-size:0.75rem;cursor:pointer;width:calc(100% - 1.5rem);font-family:'Noto Sans JP',sans-serif;transition:all 0.15s;}
+  .add-member-btn:hover{border-color:var(--ink);color:var(--ink);background:var(--surface2);}
+
+  .section-div{display:flex;align-items:center;gap:0.75rem;margin:0.75rem 0 0.25rem;font-size:0.65rem;font-weight:700;letter-spacing:0.12em;color:var(--ink3);text-transform:uppercase;}
+  .section-div::after{content:'';flex:1;height:1px;background:var(--border);}
+
+  /* MODAL */
+  .overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:200;align-items:center;justify-content:center;}
+  .overlay.show{display:flex;}
+  .modal{background:#fff;width:480px;max-width:92vw;border-top:3px solid var(--ink);box-shadow:var(--shadow-lg);animation:slideUp 0.18s ease;}
+  @keyframes slideUp{from{transform:translateY(12px);opacity:0;}to{transform:translateY(0);opacity:1;}}
+  .modal-head{display:flex;align-items:center;justify-content:space-between;padding:1rem 1.2rem 0.8rem;border-bottom:1px solid var(--border);}
+  .modal-head h2{font-family:'Bebas Neue',sans-serif;font-size:1.1rem;letter-spacing:0.1em;color:var(--ink);}
+  .modal-x{background:transparent;border:none;color:var(--ink3);cursor:pointer;font-size:1.1rem;line-height:1;}
+  .modal-x:hover{color:var(--ink);}
+  .modal-body{padding:1.2rem;display:flex;flex-direction:column;gap:0.85rem;}
+  .field label{display:block;font-size:0.72rem;font-weight:700;letter-spacing:0.07em;color:var(--ink3);text-transform:uppercase;margin-bottom:0.3rem;}
+  .field input,.field textarea,.field select{width:100%;background:var(--surface2);border:1px solid var(--border);color:var(--ink);padding:0.55rem 0.7rem;border-radius:2px;font-family:'Noto Sans JP',sans-serif;font-size:0.88rem;outline:none;transition:border-color 0.15s;}
+  .field input:focus,.field textarea:focus{border-color:var(--ink);background:#fff;}
+  .field textarea{height:72px;resize:vertical;}
+  .tmpl-mbr-list{display:flex;flex-direction:column;gap:0.3rem;margin-bottom:0.4rem;}
+  .tmpl-mbr-row{display:flex;align-items:center;gap:0.5rem;background:var(--surface2);border:1px solid var(--border);border-radius:2px;padding:0.38rem 0.65rem;font-size:0.82rem;}
+  .tmpl-mbr-row span{flex:1;font-weight:500;}
+  .tmpl-mbr-row button{background:transparent;border:none;color:var(--ink3);cursor:pointer;font-size:0.8rem;transition:color 0.12s;}
+  .tmpl-mbr-row button:hover{color:var(--red);}
+  .add-mbr-row{display:flex;gap:0.4rem;}
+  .add-mbr-row input{flex:1;}
+  .add-mbr-btn{background:var(--surface2);border:1px solid var(--border);color:var(--ink3);border-radius:2px;padding:0 0.8rem;font-size:0.75rem;font-family:'Noto Sans JP',sans-serif;cursor:pointer;white-space:nowrap;transition:all 0.12s;}
+  .add-mbr-btn:hover{border-color:var(--ink);color:var(--ink);}
+  .modal-foot{display:flex;gap:0.5rem;justify-content:flex-end;padding:0.9rem 1.2rem;border-top:1px solid var(--border);background:var(--surface2);}
+  .btn-cancel{background:transparent;border:1px solid var(--border);color:var(--ink3);padding:0.5rem 1rem;border-radius:2px;cursor:pointer;font-family:'Noto Sans JP',sans-serif;font-size:0.82rem;transition:all 0.12s;}
+  .btn-cancel:hover{border-color:var(--ink3);color:var(--ink);}
+  .btn-ok{background:var(--ink);border:none;color:#fff;padding:0.5rem 1.2rem;border-radius:2px;cursor:pointer;font-family:'Noto Sans JP',sans-serif;font-size:0.82rem;font-weight:700;transition:opacity 0.15s;}
+  .btn-ok:hover{opacity:0.8;}
+  .btn-ok.amber{background:#b8860b;}
+  .btn-ok:disabled{opacity:0.4;pointer-events:none;}
+
+  /* CONFIRM */
+  .confirm-box{background:#fff;width:360px;max-width:90vw;border-top:3px solid var(--red);box-shadow:var(--shadow-lg);animation:slideUp 0.15s ease;padding:1.4rem 1.4rem 1.2rem;}
+  .confirm-box h3{font-size:0.9rem;font-weight:700;margin-bottom:0.5rem;}
+  .confirm-box p{font-size:0.8rem;color:var(--ink2);line-height:1.65;}
+  .confirm-foot{display:flex;gap:0.5rem;justify-content:flex-end;margin-top:1.2rem;}
+  .btn-danger{background:var(--red);border:none;color:#fff;padding:0.48rem 1rem;border-radius:2px;cursor:pointer;font-family:'Noto Sans JP',sans-serif;font-size:0.82rem;font-weight:700;transition:opacity 0.15s;}
+  .btn-danger:hover{opacity:0.85;}
+
+  /* ERROR / TOAST */
+  .err-bar{max-width:900px;margin:0.6rem auto 0;background:var(--red-bg);border:1px solid #f5c6c4;border-left:3px solid var(--red);border-radius:2px;padding:0.6rem 1rem;font-size:0.8rem;color:var(--red);display:none;}
+  .err-bar.show{display:block;}
+  .toast{position:fixed;bottom:2rem;left:50%;transform:translateX(-50%) translateY(16px);background:var(--ink);color:#fff;padding:0.55rem 1.2rem;border-radius:2px;font-size:0.78rem;font-weight:500;letter-spacing:0.04em;opacity:0;transition:all 0.22s;z-index:999;pointer-events:none;white-space:nowrap;}
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
+  .empty-state{text-align:center;padding:5rem 2rem;color:var(--ink3);font-size:0.85rem;}
+</style>
+</head>
+<body>
+
+<div class="progress-bar" id="progressBar"></div>
+
+<div class="topbar">
+  <div class="topbar-logo">TASK<span>BOARD</span></div>
+  <div class="topbar-actions">
+    <button class="btn-tmpl" onclick="toggleDrawer()">TEMPLATES</button>
+    <button class="btn-add"  onclick="openTaskModal()">＋ NEW TASK</button>
+  </div>
+</div>
+
+<div class="err-bar" id="errBar"></div>
+
+<div class="tmpl-drawer" id="tmplDrawer">
+  <div class="tmpl-drawer-head">
+    <h2>Templates</h2>
+    <button class="tmpl-close" onclick="toggleDrawer()">✕</button>
+  </div>
+  <div class="tmpl-grid" id="tmplGrid"></div>
+</div>
+
+<div class="main" id="root"></div>
+<div class="toast" id="toast"></div>
+
+<!-- Task Modal -->
+<div class="overlay" id="taskModal">
+  <div class="modal">
+    <div class="modal-head"><h2>New Task</h2><button class="modal-x" onclick="closeModal('taskModal')">✕</button></div>
+    <div class="modal-body">
+      <div class="field"><label>タスク名 *</label><input id="tName" placeholder="例）ウェブサイトリニューアル"></div>
+      <div class="field"><label>詳細</label><textarea id="tDesc" placeholder="背景・目標など..."></textarea></div>
+      <div class="field"><label>期限</label><input type="date" id="tDue"></div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn-cancel" onclick="closeModal('taskModal')">キャンセル</button>
+      <button class="btn-ok" id="taskOkBtn" onclick="saveTask()">追加する</button>
+    </div>
+  </div>
+</div>
+
+<!-- Member Modal -->
+<div class="overlay" id="memberModal">
+  <div class="modal">
+    <div class="modal-head"><h2>Add Member</h2><button class="modal-x" onclick="closeModal('memberModal')">✕</button></div>
+    <div class="modal-body">
+      <div class="field"><label>氏名 *</label><input id="mName" placeholder="例）中村"></div>
+      <div class="field"><label>初期ステータス</label>
+        <select id="mStatus">
+          <option value="todo">未着手</option>
+          <option value="wip">進行中</option>
+          <option value="done">完了</option>
+          <option value="hold">保留</option>
+        </select>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn-cancel" onclick="closeModal('memberModal')">キャンセル</button>
+      <button class="btn-ok" id="memberOkBtn" onclick="saveMember()">追加する</button>
+    </div>
+  </div>
+</div>
+
+<!-- Template Save Modal -->
+<div class="overlay" id="tmplModal">
+  <div class="modal">
+    <div class="modal-head"><h2>Save Template</h2><button class="modal-x" onclick="closeModal('tmplModal')">✕</button></div>
+    <div class="modal-body">
+      <div class="field"><label>テンプレート名 *</label><input id="tmplName" placeholder="例）定例レポート作成"></div>
+      <div class="field"><label>説明</label><input id="tmplDesc" placeholder="任意"></div>
+      <div class="field">
+        <label>担当者</label>
+        <div class="tmpl-mbr-list" id="tmplMbrList"></div>
+        <div class="add-mbr-row">
+          <input id="tmplMbrName" placeholder="氏名">
+          <button class="add-mbr-btn" onclick="addTmplMbr()">＋ 追加</button>
+        </div>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn-cancel" onclick="closeModal('tmplModal')">キャンセル</button>
+      <button class="btn-ok amber" id="tmplOkBtn" onclick="saveTemplate()">保存する</button>
+    </div>
+  </div>
+</div>
+
+<!-- Confirm -->
+<div class="overlay" id="confirmModal">
+  <div class="confirm-box">
+    <h3 id="confirmTitle"></h3>
+    <p  id="confirmMsg"></p>
+    <div class="confirm-foot">
+      <button class="btn-cancel" onclick="closeModal('confirmModal')">キャンセル</button>
+      <button class="btn-danger" onclick="runConfirm()">削除する</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ════════════════════════════════════════
+   CONFIG
+════════════════════════════════════════ */
+const GAS = 'https://script.google.com/macros/s/AKfycbxr_m8bQScgxBxiONtASYfo6W68Zwj0baEyb1-0zy-2Gdt6t2NOOme5gpskGKHyRE1B_A/exec';
+
+/* ════════════════════════════════════════
+   STATE
+════════════════════════════════════════ */
+let tasks=[], templates=[], openSet=new Set();
+let curParent=null, confirmFn=null, tmplDraft=[];
+
+const SL={todo:'未着手',wip:'進行中',done:'完了',hold:'保留'};
+const SC={todo:'s-todo',wip:'s-wip',done:'s-done',hold:'s-hold'};
+
+/* ════════════════════════════════════════
+   API — すべてGETで通信（CORS完全回避）
+════════════════════════════════════════ */
+function setLoading(on){
+  document.getElementById('progressBar').classList.toggle('loading',on);
+}
+function showErr(msg){
+  const el=document.getElementById('errBar');
+  el.textContent='⚠ '+msg; el.classList.add('show');
+  setTimeout(()=>el.classList.remove('show'),6000);
+}
+
+// GETでデータ取得
+async function apiGet(action){
+  setLoading(true);
+  try{
+    const res=await fetch(`${GAS}?action=${encodeURIComponent(action)}`);
+    const data=await res.json();
+    if(!data.ok) throw new Error(data.error||'エラー');
+    return data;
+  }catch(e){
+    showErr('取得失敗: '+e.message); throw e;
+  }finally{setLoading(false);}
+}
+
+// 書き込み操作もGETで送る（dataをJSONエンコードしてクエリに乗せる）
+async function apiSend(action, data){
+  setLoading(true);
+  try{
+    const url=`${GAS}?action=${encodeURIComponent(action)}&data=${encodeURIComponent(JSON.stringify(data))}`;
+    const res=await fetch(url);
+    const json=await res.json();
+    if(!json.ok) throw new Error(json.error||'エラー');
+    return json;
+  }catch(e){
+    showErr('操作失敗: '+e.message); throw e;
+  }finally{setLoading(false);}
+}
+
+/* ════════════════════════════════════════
+   BOOT
+════════════════════════════════════════ */
+async function boot(){
+  try{
+    const [t,tmpl]=await Promise.all([apiGet('getTasks'),apiGet('getTemplates')]);
+    tasks=t.tasks||[]; templates=tmpl.templates||[];
+    render();
+  }catch(e){}
+}
+
+/* ════════════════════════════════════════
+   RENDER
+════════════════════════════════════════ */
+function pct(members){
+  if(!members.length) return 0;
+  return Math.round(members.filter(m=>m.status==='done').length/members.length*100);
+}
+
+function render(){
+  const root=document.getElementById('root');
+  root.innerHTML='';
+  const active=tasks.filter(t=>!t.completed);
+  const done=tasks.filter(t=>t.completed);
+  if(!tasks.length){root.innerHTML='<div class="empty-state">タスクがありません。NEW TASK から追加してください。</div>';renderDrawer();return;}
+  active.forEach(t=>root.appendChild(buildRow(t)));
+  if(done.length){
+    const d=document.createElement('div');
+    d.className='section-div'; d.textContent=`Completed  ${done.length}`;
+    root.appendChild(d);
+    done.forEach(t=>root.appendChild(buildRow(t)));
+  }
+  renderDrawer();
+}
+
+function buildRow(task){
+  const p=pct(task.members), isOpen=openSet.has(task.id);
+  const el=document.createElement('div');
+  el.className='task-row'+(task.completed?' is-done':'')+(isOpen?' is-open':'');
+  el.id='row-'+task.id;
+  const dueChip=task.due?`<span class="chip chip-due">${task.due}</span>`:'';
+  const doneChip=task.completed?`<span class="chip chip-done">DONE</span>`:'';
+  const completeBtn=task.completed
+    ?`<button class="t-btn reopen" onclick="event.stopPropagation();toggleDone('${task.id}',false)">REOPEN</button>`
+    :`<button class="t-btn done"   onclick="event.stopPropagation();toggleDone('${task.id}',true)">✓ DONE</button>`;
+  el.innerHTML=`
+    <div class="task-head" onclick="toggleRow('${task.id}')">
+      <span class="caret">▶</span>
+      <span class="task-title">${esc(task.name)}</span>
+      <div class="task-chips">
+        <span class="chip chip-count">${task.members.length}名</span>
+        ${dueChip}${doneChip}
+        <div class="prog-wrap">
+          <div class="prog-track"><div class="prog-fill" id="pf-${task.id}" style="width:${p}%"></div></div>
+          <span id="pp-${task.id}">${p}%</span>
+        </div>
+      </div>
+      <div class="task-btns" onclick="event.stopPropagation()">
+        <button class="t-btn tmpl-save" onclick="openTmplModal('${task.id}')">TMPL</button>
+        ${completeBtn}
+        <button class="t-btn del" onclick="askDelTask('${task.id}')">DEL</button>
+      </div>
+    </div>
+    <div class="task-body">
+      <div class="task-desc">${esc(task.desc||'—')}</div>
+      <span class="members-label">Members</span>
+      <div class="member-list" id="ml-${task.id}">
+        ${task.members.map(m=>mRow(task.id,m)).join('')}
+      </div>
+      <button class="add-member-btn" onclick="openMemberModal('${task.id}')">＋ 担当者を追加</button>
+    </div>`;
+  return el;
+}
+
+function mRow(tid,m){
+  return `<div class="member-row" id="mr-${m.id}">
+    <div class="avatar">${esc(m.name.charAt(0))}</div>
+    <span class="member-name-text">${esc(m.name)}</span>
+    <select class="status-sel" onchange="updateMStatus('${tid}','${m.id}',this.value)">
+      <option value="todo" ${m.status==='todo'?'selected':''}>未着手</option>
+      <option value="wip"  ${m.status==='wip' ?'selected':''}>進行中</option>
+      <option value="done" ${m.status==='done'?'selected':''}>完了</option>
+      <option value="hold" ${m.status==='hold'?'selected':''}>保留</option>
+    </select>
+    <span class="status-tag ${SC[m.status]}" id="st-${m.id}">${SL[m.status]}</span>
+    <button class="m-del-btn" onclick="askDelMember('${tid}','${m.id}','${esc(m.name)}')">✕</button>
+  </div>`;
+}
+
+/* ════════════════════════════════════════
+   TASK ACTIONS
+════════════════════════════════════════ */
+function toggleRow(id){
+  if(openSet.has(id)) openSet.delete(id); else openSet.add(id);
+  document.getElementById('row-'+id)?.classList.toggle('is-open');
+}
+
+async function toggleDone(id,done){
+  try{
+    await apiSend('updateTaskStatus',{id,completed:done});
+    const t=tasks.find(t=>t.id===id); if(t) t.completed=done;
+    render();
+  }catch(e){}
+}
+
+async function updateMStatus(tid,mid,ns){
+  const tag=document.getElementById('st-'+mid);
+  if(tag){tag.className=`status-tag ${SC[ns]}`;tag.textContent=SL[ns];}
+  const task=tasks.find(t=>t.id===tid);
+  const mbr=task?.members.find(m=>m.id===mid);
+  if(mbr) mbr.status=ns;
+  updateProg(tid,task);
+  try{ await apiSend('updateMemberStatus',{id:mid,status:ns}); }catch(e){boot();}
+}
+
+function updateProg(tid,task){
+  if(!task) return;
+  const p=pct(task.members);
+  const pf=document.getElementById('pf-'+tid), pp=document.getElementById('pp-'+tid);
+  if(pf) pf.style.width=p+'%'; if(pp) pp.textContent=p+'%';
+}
+
+function askDelTask(id){
+  const t=tasks.find(t=>t.id===id); if(!t) return;
+  document.getElementById('confirmTitle').textContent='タスクを削除';
+  document.getElementById('confirmMsg').textContent=`「${t.name}」を削除します。元に戻せません。`;
+  confirmFn=async()=>{
+    try{ await apiSend('deleteTask',{id}); tasks=tasks.filter(t=>t.id!==id); render(); toast('タスクを削除しました'); }catch(e){}
+  };
+  openModal('confirmModal');
+}
+
+function askDelMember(tid,mid,name){
+  document.getElementById('confirmTitle').textContent='担当者を削除';
+  document.getElementById('confirmMsg').textContent=`「${name}」を削除します。`;
+  confirmFn=async()=>{
+    try{
+      await apiSend('deleteMember',{id:mid});
+      const task=tasks.find(t=>t.id===tid);
+      if(task) task.members=task.members.filter(m=>m.id!==mid);
+      document.getElementById('mr-'+mid)?.remove();
+      const cnt=document.querySelector(`#row-${tid} .chip-count`);
+      if(cnt&&task) cnt.textContent=task.members.length+'名';
+      updateProg(tid,task); toast('担当者を削除しました');
+    }catch(e){}
+  };
+  openModal('confirmModal');
+}
+
+/* ════════════════════════════════════════
+   TASK MODAL
+════════════════════════════════════════ */
+function openTaskModal(){
+  document.getElementById('tName').value='';
+  document.getElementById('tDesc').value='';
+  document.getElementById('tDue').value='';
+  openModal('taskModal');
+  setTimeout(()=>document.getElementById('tName').focus(),60);
+}
+
+async function saveTask(){
+  const name=document.getElementById('tName').value.trim();
+  if(!name){alert('タスク名を入力してください');return;}
+  const btn=document.getElementById('taskOkBtn'); btn.disabled=true;
+  try{
+    const payload={name,desc:document.getElementById('tDesc').value.trim(),due:document.getElementById('tDue').value};
+    const res=await apiSend('saveTask',payload);
+    tasks.unshift({id:res.id,...payload,completed:false,members:[]});
+    openSet.add(res.id); closeModal('taskModal'); render(); toast('タスクを追加しました');
+  }catch(e){}
+  btn.disabled=false;
+}
+
+/* ════════════════════════════════════════
+   MEMBER MODAL
+════════════════════════════════════════ */
+function openMemberModal(pid){
+  curParent=pid;
+  document.getElementById('mName').value='';
+  document.getElementById('mStatus').value='todo';
+  openModal('memberModal');
+  setTimeout(()=>document.getElementById('mName').focus(),60);
+}
+
+async function saveMember(){
+  const name=document.getElementById('mName').value.trim();
+  if(!name){alert('氏名を入力してください');return;}
+  const status=document.getElementById('mStatus').value;
+  const btn=document.getElementById('memberOkBtn'); btn.disabled=true;
+  try{
+    const res=await apiSend('saveMember',{task_id:curParent,name,status});
+    const task=tasks.find(t=>t.id===curParent);
+    const m={id:res.id,name,status};
+    if(task) task.members.push(m);
+    document.getElementById('ml-'+curParent)?.insertAdjacentHTML('beforeend',mRow(curParent,m));
+    const cnt=document.querySelector(`#row-${curParent} .chip-count`);
+    if(cnt&&task) cnt.textContent=task.members.length+'名';
+    updateProg(curParent,task); closeModal('memberModal'); toast('担当者を追加しました');
+  }catch(e){}
+  btn.disabled=false;
+}
+
+/* ════════════════════════════════════════
+   TEMPLATE DRAWER
+════════════════════════════════════════ */
+function toggleDrawer(){
+  const d=document.getElementById('tmplDrawer');
+  d.classList.toggle('show');
+  if(d.classList.contains('show')) renderDrawer();
+}
+
+function renderDrawer(){
+  const g=document.getElementById('tmplGrid'); if(!g) return;
+  if(!templates.length){g.innerHTML='<div class="tmpl-empty">テンプレートがありません。タスクの「TMPL」ボタンから保存できます。</div>';return;}
+  g.innerHTML=templates.map(t=>`
+    <div class="tmpl-card">
+      <div class="tmpl-card-name">${esc(t.name)}</div>
+      <div class="tmpl-card-meta">${esc(t.desc||'')}${t.members.length?' · '+t.members.length+'名':''}</div>
+      <div class="tmpl-date-row">
+        <span class="tmpl-date-label">期限</span>
+        <input type="date" class="tmpl-date-input" id="td-${t.id}" value="${esc(t.defaultDue||'')}">
+      </div>
+      <div class="tmpl-card-actions">
+        <button class="tmpl-use-btn" onclick="applyTmpl('${t.id}')">USE TEMPLATE</button>
+        <button class="tmpl-del-btn" onclick="askDelTmpl('${t.id}')">DEL</button>
+      </div>
+    </div>`).join('');
+}
+
+async function applyTmpl(tmplId){
+  const tmpl=templates.find(t=>t.id===tmplId); if(!tmpl) return;
+  const due=document.getElementById('td-'+tmplId)?.value||'';
+  if(due) tmpl.defaultDue=due;
+  try{
+    const tr=await apiSend('saveTask',{name:tmpl.name,desc:tmpl.desc||'',due});
+    const newT={id:tr.id,name:tmpl.name,desc:tmpl.desc||'',due,completed:false,members:[]};
+    for(const m of tmpl.members){
+      const mr=await apiSend('saveMember',{task_id:tr.id,name:m.name,status:'todo'});
+      newT.members.push({id:mr.id,name:m.name,status:'todo'});
+    }
+    tasks.unshift(newT); openSet.add(newT.id); render(); toast(`「${tmpl.name}」を追加しました`);
+  }catch(e){}
+}
+
+function askDelTmpl(id){
+  const t=templates.find(t=>t.id===id); if(!t) return;
+  document.getElementById('confirmTitle').textContent='テンプレートを削除';
+  document.getElementById('confirmMsg').textContent=`「${t.name}」を削除します。`;
+  confirmFn=async()=>{
+    try{ await apiSend('deleteTemplate',{id}); templates=templates.filter(t=>t.id!==id); renderDrawer(); toast('テンプレートを削除しました'); }catch(e){}
+  };
+  openModal('confirmModal');
+}
+
+/* ════════════════════════════════════════
+   TEMPLATE SAVE MODAL
+════════════════════════════════════════ */
+function openTmplModal(tid){
+  const task=tasks.find(t=>t.id===tid);
+  document.getElementById('tmplName').value=task?task.name:'';
+  document.getElementById('tmplDesc').value='';
+  tmplDraft=task?task.members.map(m=>({name:m.name})):[];
+  renderTmplMbrList();
+  document.getElementById('tmplMbrName').value='';
+  openModal('tmplModal');
+}
+function renderTmplMbrList(){
+  document.getElementById('tmplMbrList').innerHTML=tmplDraft.map((m,i)=>`
+    <div class="tmpl-mbr-row"><span>${esc(m.name)}</span><button onclick="rmTmplMbr(${i})">✕</button></div>`).join('');
+}
+function addTmplMbr(){
+  const n=document.getElementById('tmplMbrName').value.trim(); if(!n) return;
+  tmplDraft.push({name:n}); document.getElementById('tmplMbrName').value=''; renderTmplMbrList();
+}
+function rmTmplMbr(i){tmplDraft.splice(i,1);renderTmplMbrList();}
+
+async function saveTemplate(){
+  const name=document.getElementById('tmplName').value.trim();
+  if(!name){alert('テンプレート名を入力してください');return;}
+  const btn=document.getElementById('tmplOkBtn'); btn.disabled=true;
+  try{
+    const data={name,desc:document.getElementById('tmplDesc').value.trim(),icon:'📋',members:[...tmplDraft],defaultDue:''};
+    const res=await apiSend('saveTemplate',data);
+    templates.push({id:res.id,...data});
+    closeModal('tmplModal');
+    const d=document.getElementById('tmplDrawer');
+    if(!d.classList.contains('show')) d.classList.add('show');
+    renderDrawer(); toast(`テンプレート「${name}」を保存しました`);
+  }catch(e){}
+  btn.disabled=false;
+}
+
+/* ════════════════════════════════════════
+   UTILS
+════════════════════════════════════════ */
+function openModal(id){document.getElementById(id).classList.add('show');}
+function closeModal(id){document.getElementById(id).classList.remove('show');}
+async function runConfirm(){closeModal('confirmModal');if(confirmFn) await confirmFn();confirmFn=null;}
+
+let toastTmr;
+function toast(msg){
+  const el=document.getElementById('toast');
+  el.textContent=msg; el.classList.add('show');
+  clearTimeout(toastTmr); toastTmr=setTimeout(()=>el.classList.remove('show'),2200);
+}
+function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+
+document.querySelectorAll('.overlay').forEach(el=>{
+  el.addEventListener('click',e=>{if(e.target===el) el.classList.remove('show');});
+});
+
+boot();
+</script>
+</body>
+</html>
